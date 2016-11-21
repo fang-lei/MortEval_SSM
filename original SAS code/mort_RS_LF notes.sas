@@ -27,53 +27,54 @@ proc freq data=mort;
    where Country='DEU';
    table age;
 run;
-*/
+*/ /* meaning of this part?? */
 
 
-data aus;
+data aus;  /* extract aus data from mort */2.400,00  
   set mort;
   where Country='AUS';
 run;
-data dnk;
+data dnk;  /* extract dunk data from mort */
   set mort;
   where Country='DNK';
 run;
-data deu;
+data deu;  /* extract deu data from mort */
   set mort;
   where Country='DEU';
 run;
 
-proc sort data=deu;
+proc sort data=deu;  /* sort the due data by year and age */
    by year age;
 run;
 
 
-proc iml;
+proc iml; /* interactive matrix language */
     use deu;
-    read all var {age} into x;
-    bsp = bspline(x, 2, ., 4);
-    create spline var{c1 c2 c3 c4 c5 c6 c7};
+    read all var {age} into x;  /* what is in variable x?? all? var{age}?? */
+    bsp = bspline(x, 2, ., 4);  /* Bspline on x with degree=2 and number of knots = 4 and produce 7 variables */
+    create spline var{c1 c2 c3 c4 c5 c6 c7};  /* create a variable spline to contain 7 variables from last step */
     append from bsp;
  quit;
- data deu;
+
+ data deu; /* merge spline to data deu */
     merge deu spline;
  run;
 
-%macro makeTerm;
+%macro makeTerm;  /* tricky part: create a term to do repetitive calculation?? */
    %do i=1 %to 110;
       %str( a&i + )
    %end;
 %mend;
 %let term = %makeTerm;
 
-proc ssm data=deu plot=ao;
+proc ssm data=deu plot=ao; /* ao?? */
   id year;
-  parms v1-v7 0.001;
+  parms v1-v7 0.001; /* specify the initial values of v1-v7 as 0.001 */
   lambda = v1*c1 + v2*c2 + v3*c3 + v4*c4
-       + v5*c5 + v6*c6 + v7*c7;
+       + v5*c5 + v6*c6 + v7*c7;  /* compute lambda */
   if age=0 then lambda=1;
-  parms lvar2;
-  parms av1-av7;
+  parms lvar2;  /* create lvar2 ??? grid search?? */
+  parms av1-av7;  /* why not make this line and last line as one?? */
   var1 = exp(av1*c1 + av2*c2 + av3*c3 + av4*c4
        + av5*c5 + av6*c6 + av7*c7);
   
