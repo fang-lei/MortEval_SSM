@@ -3,12 +3,12 @@ input Country$  Year  Age  Female Male  Total @@;   /* give name for each column
 lfr = log(Female);  /* take log calculation for last three column */
 lmr = log(male);
 lmt = log(total);
-array ageArray{110} a1-a110; /* create an array to simplify the repetitive code part for age */
+array ageArray{110} a1-a110; /* create dummy variables by an array to simplify the code part for age */
 do i=1 to 110;
      ageArray[i] = (age=i);  
 end;
 
-datalines; /* input data question: what is the meaning of having above code about data mort??*/
+datalines; /* input data according to above structure*/
 DEU    2013    109    0.929799    2.566667    1.011348
 DEU    2013    110     1.417293    6    1.485185
 ; /* remove most (99.99%) of datalines input to clearly show the code, and only keep two lines as example */
@@ -30,7 +30,7 @@ run;
 */ /* meaning of this part?? */
 
 
-data aus;  /* extract aus data from mort */2.400,00  
+data aus;  /* extract aus data from mort */
   set mort;
   where Country='AUS';
 run;
@@ -43,7 +43,7 @@ data deu;  /* extract deu data from mort */
   where Country='DEU';
 run;
 
-proc sort data=deu;  /* sort the due data by year and age */
+proc sort data=deu;  /* sort the deu data by year and age */
    by year age;
 run;
 
@@ -60,12 +60,13 @@ proc iml; /* interactive matrix language */
     merge deu spline;
  run;
 
-%macro makeTerm;  /* tricky part: create a term to do repetitive calculation?? */
+%macro makeTerm;  /* tricky part: create a term equivalent to a1 + a2 +...+a110 */
    %do i=1 %to 110;
       %str( a&i + )
    %end;
 %mend;
 %let term = %makeTerm;
+
 
 proc ssm data=deu plot=ao; /* ao?? */
   id year;
