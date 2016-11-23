@@ -68,27 +68,32 @@ proc iml; /* interactive matrix language */
 %let term = %makeTerm;
 
 
-proc ssm data=deu plot=ao; /* ao?? */
+proc ssm data=deu plot=ao; /* ao: create a panel of plots consisting of prediction error normality plots */
   id year;
   parms v1-v7 0.001; /* specify the initial values of v1-v7 as 0.001 */
   lambda = v1*c1 + v2*c2 + v3*c3 + v4*c4
-       + v5*c5 + v6*c6 + v7*c7;  /* compute lambda */
+       + v5*c5 + v6*c6 + v7*c7;  /* compute lambda via smoothed mortality data from B spline and unobserved parameters */
   if age=0 then lambda=1;
-  parms lvar2;  /* create lvar2 ??? grid search?? */
-  parms av1-av7;  /* why not make this line and last line as one?? */
+  parms lvar2;  /* create parameter lvar2 and optimized by grid seraching */
+  parms av1-av7;  /* create parameters av1-av7 */
   var1 = exp(av1*c1 + av2*c2 + av3*c3 + av4*c4
-       + av5*c5 + av6*c6 + av7*c7);
+       + av5*c5 + av6*c6 + av7*c7); /* compute var1 */
   
-  var2 = exp(lvar2);
-  state slate(1) T(I) W(I) cov(d)=(var2) A1(1);
-  comp beffect = (lambda)*slate[1];
+  var2 = exp(lvar2); /* compute var2 */
+  state slate(1) T(I) W(I) cov(d)=(var2) A1(1); /* define the state structure slate(1) with transition 
+  matrix T(I) as identity form, design matrix W(I)as identity form, diturbance covariance Q as the diagonal 
+  matrix cov(d) of taking var2 as diagonal and A1(1) defining the last element of the state subsection as diffuse??*/
+  comp beffect = (lambda)*slate[1]; /* defind component as the product of lamda and the first varibale from slate(1) */
   comp latent = slate[1];
   
-  irregular wn variance=var1;
-  model lmr = a1-a110 beffect wn;
-  eval mpattern = &term beffect;
-  output out=deuFor press pdv;
+  irregular wn variance=var1; /* define white noise component of this model */
+  model lmr = a1-a110 beffect wn; /* model statement: regression part of a1-a110 + state part beffect + residuas */
+  eval mpattern = &term beffect; /* &term ?? */
+  output out=deuFor press pdv; /* outut is saved in deuFor, and press means print the prediction errorsum of 
+  squares, PDV means print inclusive of the variables defined in programming statements in SSM procedure */
 run;
+
+
 proc sgplot data=deuFor;
    where age=10;
    series x=year y=smoothed_beffect;
