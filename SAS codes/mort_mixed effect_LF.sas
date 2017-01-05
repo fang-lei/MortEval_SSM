@@ -3,8 +3,8 @@ input Country$  Year  Age  Female Male  Total @@;   /* give name for each column
 lfr = log(Female);  /* take log calculation for last three column */
 lmr = log(male);
 lmt = log(total);
-array ageArray{110} a1-a110; /* create dummy variables by an array to simplify the code part for age */
-do i=1 to 110;
+array ageArray{111} a0-a110; /* create dummy variables by an array to simplify the code part for age */
+do i=0 to 110;
      ageArray[i] = (age=i);  
 end;
 
@@ -2745,19 +2745,6 @@ proc sort data=deu;  /* sort the deu data by year and age */
    by year age;
 run;
 
-proc iml; /* interactive matrix language */
-    use deu;
-    read all var {age} into x;  /* read age variable into x */
-    bsp = bspline(x, 2, ., 4);  /* generate B-spline basis for a cubic spline with 4 evenly spaced internal knots in the x-range 
-    (B-spline on x with degree=2 and number of knots = 4 and produce 7 variables) */
-    create spline var{c1 c2 c3 c4 c5 c6 c7};  /* create a merged date set spline to contain spline basis columns (7 variables from last step) */
-    append from bsp;
- quit;
-
- data deu; /* merge spline to data deu */
-    merge deu spline;
- run;
-
 data combined1;
 merge deu GDP;
 by Year;
@@ -2772,13 +2759,6 @@ data combined3;
 merge deu GDP health;
 by Year;
 run;
-
-%macro makeTerm;  /* tricky part: create a term equivalent to a1 + a2 +...+a110 */
-   %do i=1 %to 110;
-      %str( a&i + )
-   %end;
-%mend;
-%let term = %makeTerm;
 
 /* ssm analysis with mixed effect model by year*/
 proc ssm data=combined3 plot=ao; /* ao: create a panel of plots consisting of prediction error normality plots */
