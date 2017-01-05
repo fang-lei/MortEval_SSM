@@ -2801,7 +2801,7 @@ proc ssm data=combined2 plot=ao; /* ao: create a panel of plots consisting of pr
   
   irregular wn variance=var1; /* define the observation noise with the variance function var1 */
   model lmr = lhealth a1-a110 beffect wn; /* model statement: regression part of a1-a110 + state part beffect + observation noise(residuals) */
-  eval mpattern = lhealth &term beffect; /* define a variable mpattern as a1 + a2 +...+a110 + beffect */
+  eval mpattern = lhealth + &term beffect; /* define a variable mpattern as a1 + a2 +...+a110 + beffect */
   output out=deuForMortHea ALPHA=0.05 press pdv; /* output is saved in deuFor, and press means print the prediction error sum of 
   squares, PDV means print inclusive of the variables defined in programming statements in SSM procedure */
 run;
