@@ -1,20 +1,27 @@
+/* This file contains a macro at the end as well as  */
+/* 4 calls to it to recreate and ehance the previous */
+/* PROC SSM models.                                  */
+/* You can add more calls to the same macro with     */
+/* to try different models                           */
+
+
 /* read datalines into SAS dataset DEU*/
 data mort;    
-/* give name for each column */
-input Country$  Year  Age  Female Male  Total @@;   
+   /* give name for each column */
+   input Country$  Year  Age  Female Male  Total @@;   
 
-/* take log calculation for last three column */
-lfr = log(Female);  
-lmr = log(male);
-lmt = log(total);
+   /* take log calculation for last three column */
+   lfr = log(Female);  
+   lmr = log(male);
+   lmt = log(total);
 
-/* create dummy variables by an array */
-/* to simplify the code part for age  */
-array ageArray{110} a1-a110; 
+   /* create dummy variables by an array */
+   /* to simplify the code part for age  */
+   array ageArray{110} a1-a110; 
 
-do i = 1 to 110;
-     ageArray[i] = (age = i);  
-end;
+   do i = 1 to 110;
+        ageArray[i] = (age = i);  
+   end;
 
 /* input data according to above structure */
 datalines; 
@@ -2722,12 +2729,12 @@ datalines;
 
 /* read dataset HEALTH into SAS */
 data health;    
-/* give name for each column */
-input Year healthperinhabitant healthingdp @@;   
+   /* give name for each column */
+   input Year healthperinhabitant healthingdp @@;   
 
-/* take log calculation */
-lhealth = log(healthperinhabitant);  
-lhealthgdp = log(healthingdp);
+   /* take log calculation */
+   lhealth = log(healthperinhabitant);  
+   lhealthgdp = log(healthingdp);
 
 /* input data according to above structure*/
 datalines; 
@@ -2767,83 +2774,232 @@ proc sort data=deu;  /* sort the deu data by year and age */
    by year age;
 run;
 
-proc iml; /* interactive matrix language */
-    use deu;
-    read all var {age} into x;  /* read age variable into x */
-    bsp = bspline(x, 2, ., 4);  /* generate B-spline basis for a cubic spline with 4 evenly spaced internal knots in the x-range 
-    (B-spline on x with degree=2 and number of knots = 4 and produce 7 variables) */
-    create spline var{c1 c2 c3 c4 c5 c6 c7};  /* create a merged date set spline to contain spline basis columns (7 variables from last step) */
-    append from bsp;
+/* interactive matrix language */
+proc iml; 
+   use deu;
+
+   /* read age variable into x */
+   read all var {age} into x;  
+
+   /* generate B-spline basis for a cubic spline with 4 */
+   /*evenly spaced internal knots in the x-range        */ 
+   /* (B-spline on x with degree = 2 and number of      */
+   /* knots = 4 and produce 7 variables)                */
+   bsp = bspline(x, 2, ., 4);  
+
+   /* create a merged date set spline to contain spline */
+   /* basis columns (7 variables from last step)        */
+   create spline var{c1 c2 c3 c4 c5 c6 c7};  
+
+   append from bsp;
  quit;
 
- data deu; /* merge spline to data deu */
+ /* merge spline to data deu */
+ data deu; 
     merge deu spline;
  run;
 
 data combined1;
-merge deu GDP;
-by Year;
+   merge deu GDP;
+   by Year;
 run;
 
 data combined2;
-merge deu health;
-by Year;
+   merge deu health;
+   by Year;
 run;
 
 data combined3;
-merge deu GDP health;
-by Year;
+   merge deu GDP health;
+   by Year;
 run;
 
-%macro makeTerm;  /* tricky part: create a term equivalent to a1 + a2 +...+a110 */
-   %do i=1 %to 110;
+/* tricky part: create a term equivalent to a1 + a2 +...+a110 */
+%macro makeTerm;  
+   %do i = 1 %to 110;
       %str( a&i + )
    %end;
 %mend;
 %let term = %makeTerm;
 
-/* ssm analysis with mortality data, health data and GDP data */
-proc ssm data=combined3 plot=ao; /* ao: create a panel of plots consisting of prediction error normality plots */
-  id year;
-  parms v1-v7 0.001; /* parameters needed for state space model, and specify the initial values of v1-v7 as 0.001 */
-  lambda = v1*c1 + v2*c2 + v3*c3 + v4*c4
-       + v5*c5 + v6*c6 + v7*c7;  /* compute lambda via spline basis and latent variables (unobserved parameters) */
-  if age=0 then lambda=1;
-  parms lvar2;  /* create parameter lvar2 and optimised by grid searching */
-  parms av1-av7;  /* parameters av1-av7 needed to define the variance function of this model*/
-  var1 = exp(av1*c1 + av2*c2 + av3*c3 + av4*c4
-       + av5*c5 + av6*c6 + av7*c7); /* define the variance function of this model */
-  
-  var2 = exp(lvar2); /* compute var2 as exponential of lvar2 */
-  state slate(1) T(I) W(I) cov(d)=(var2) A1(1); /* define the state structure slate(1) with transition 
-  matrix T(I) as identity form, design matrix W(I)as identity form, disturbance covariance Q as the diagonal 
-  matrix cov(d) of taking var2 as diagonal and A1(1) defining the last element of the state subsection as diffuse*/
-  comp beffect = (lambda)*slate[1]; /* define component beffect as the product of lambda and the first variabable from slate(1) */
-  comp latent = slate[1]; /* define component latent as the first variabale from slate(1) */
-  
-  irregular wn variance=var1; /* define the observation noise with the variance function var1 */
-  model lmr = lgdp lhealth a1-a110 beffect wn; /* model statement: regression part of a1-a110 + state part beffect + observation noise(residuals) */
-  eval mpattern = lgdp + lhealth + &term beffect; /* define a variable mpattern as a1 + a2 +...+a110 + beffect */
-  output out=deuForMortHeaGDP ALPHA=0.05 press pdv; /* output is saved in deuFor, and press means print the prediction error sum of 
-  squares, PDV means print inclusive of the variables defined in programming statements in SSM procedure */
-run;
 
-proc sgplot data=deuForMortHeaGDP;
-   where age=10;
-   series x=year y=smoothed_beffect;
-run;
-proc sgplot data=deuForMortHeaGDP;
-   where year=2000;
-   series x=age y=lambda;
-run;
+%macro mort_ssm_fit(
+                     inData        = ,
+                     regressors    = ,
+                     outLocation   = ,
+                     outName       = ,
+                     plotWhereAge  = 10,
+                     plotWhereYear = 2000,
+                     );
 
-proc sgplot data=deuForMortHeaGDP;
-   where age=10;
-   series x=year y=smoothed_latent;
-run;
+   libname myLib "&outLocation.";
 
-proc sgplot data=deuForMortHeaGDP;
-   where age=10;
-   series x=year y=smoothed_mpattern;
-   scatter x=year y= lmr;
-run;
+   ODS RTF file = "&outLocation.\&outName..rtf";
+   /* ssm analysis with mortality data, health data and GDP data */
+   proc ssm 
+            data = &inData. 
+            /* ao: creates a panel of plots consisting of */
+            /* prediction error normality plots           */
+            plot = ao
+            ; 
+      id year;
+
+      /* parameters needed for state space model,         */
+      /* and specify the initial values of v1-v7 as 0.001 */
+      parms v1-v7 0.001; 
+
+      /* compute lambda via spline basis and latent */
+      /* variables (unobserved parameters)          */
+      lambda = v1*c1 + v2*c2 + v3*c3 + v4*c4 + v5*c5 + v6*c6 + v7*c7;  
+
+      if age =0 then lambda = 1;
+
+      /* create parameter lvar2 and optimised by grid searching */
+      parms lvar2;  
+
+      /* parameters av1-av7 needed to define */
+      /* the variance function of this model */
+      parms av1-av7;  
+
+      /* define the variance function of this model */
+      var1 = exp(av1*c1 + av2*c2 + av3*c3 + av4*c4 + av5*c5 + av6*c6 + av7*c7); 
+
+      /* compute var2 as exponential of lvar2 */
+      var2 = exp(lvar2); 
+
+      /* define the state structure slate(1) with transition     */
+      /* matrix T(I) as identity form, design matrix W(I)as      */
+      /* identity form, disturbance covariance Q as the diagonal */
+      /* matrix cov(d) of taking var2 as diagonal and A1(1)      */
+      /* defining the last element of the state subsection       */
+      /* as diffuse                                              */
+      state slate(1) T(I) W(I) cov(d)=(var2) A1(1); 
+       
+      /* define component beffect as the product of lambda and  */
+      /* the first variabable from slate(1)                     */
+      comp beffect = (lambda)*slate[1]; 
+
+      /* define component latent as the first variabale from slate(1) */
+      comp latent = slate[1]; 
+
+      /* define the observation noise with the variance function var1 */
+      irregular wn variance = var1; 
+
+      /* model statement: regression part of a1-a110 + state part beffect */
+      /* + observation noise(residuals)                                   */
+      model lmr = &regressors. 
+                  a1-a110 
+                  beffect 
+                  wn
+                  ; 
+
+      %let regressor_sum = %str();
+      %let count = 1;
+      %let regressor = %qscan(&regressors, &count, %str( ));
+
+      %do %while(&regressor. ne);
+         %let regressor_sum = &regressor_sum. &regressor. +;
+         %let count = %eval(&count + 1);
+         %let regressor = %qscan(&regressors, &count, %str( ));
+      %end;
+      
+      /* define a variable mpattern as a1 + a2 +...+a110 + beffect */
+      eval mpattern = &regressor_sum. 
+                      &term 
+                      beffect
+                      ; 
+
+      /* output is saved in dataset with name &outName.  */
+      /* in &outLocation.,         and press means print */
+      /* the prediction error sum of squares, PDV means  */
+      /* print inclusive of the variables defined in     */
+      /* programming statements in SSM procedure         */
+      output 
+            out   = MyLib.&outName.
+            ALPHA = 0.05 
+            press 
+            pdv; 
+   run;
+   ODS CLOSE;
+
+   ODS PDF file = "&outLocation.\&outName._Smooth_Beffect.pdf";
+   proc sgplot data = MyLib.&outName.;
+      where age = &plotWhereAge.;
+      series 
+            x = year 
+            y = smoothed_beffect
+            ;
+   run;
+   ODS CLOSE;
+
+   ODS PDF file = "&outLocation.\&outName._Lambda.pdf";
+   proc sgplot data = MyLib.&outName.;
+      where year = &plotWhereYear.;
+      series 
+            x = age 
+            y = lambda
+            ;
+   run;
+   ODS CLOSE;
+
+   ODS PDF file = "&outLocation.\&outName._Smooth_Latent.pdf";
+   proc sgplot data = MyLib.&outName.;
+      where age = &plotWhereAge.;
+      series 
+            x = year 
+            y = smoothed_latent
+            ;
+   run;
+   ODS CLOSE;
+
+   ODS PDF file = "&outLocation.\&outName._Smooth_MPattern.pdf";
+   proc sgplot data = MyLib.&outName.;
+      where age = &plotWhereAge.;
+      series 
+            x = year 
+            y = smoothed_mpattern
+            ;
+      scatter 
+              x = year 
+              y = lmr
+              ;
+   run;
+   ODS CLOSE;
+%mend mort_ssm_fit;
+
+
+%mort_ssm_fit(
+               inData        = combined3,
+               regressors    = ,
+               outName       = DEU_NoReg,
+               plotWhereAge  = 10,
+               plotWhereYear = 2000,
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               )
+
+%mort_ssm_fit(
+               inData        = combined3,
+               regressors    = HEALTH,
+               outName       = DEU_HEALTH,
+               plotWhereAge  = 10,
+               plotWhereYear = 2000,
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               )
+
+%mort_ssm_fit(
+               inData        = combined3,
+               regressors    = GDP,
+               outName       = DEU_GDP,
+               plotWhereAge  = 10,
+               plotWhereYear = 2000,
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               )
+
+%mort_ssm_fit(
+               inData        = combined3,
+               regressors    = GDP HEALTH,
+               outName       = DEU_GDP_HEALTH,
+               plotWhereAge  = 10,
+               plotWhereYear = 2000,
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               )
