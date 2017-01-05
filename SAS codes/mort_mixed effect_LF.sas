@@ -1,14 +1,23 @@
-data mort;    /* read dataset into SAS */
-input Country$  Year  Age  Female Male  Total @@;   /* give name for each column */
-lfr = log(Female);  /* take log calculation for last three column */
-lmr = log(male);
-lmt = log(total);
-array ageArray{111} a0-a110; /* create dummy variables by an array to simplify the code part for age */
-do i=0 to 110;
-     ageArray[i] = (age=i);  
-end;
+/* read dataset into SAS */
+data mort;    
+   /* give name for each column */
+   input Country$  Year  Age  Female Male  Total @@;   
 
-datalines; /* input data according to above structure*/
+   /* take log calculation for last three column */
+   lfr = log(Female);  
+   lmr = log(male);
+   lmt = log(total);
+
+   /* create dummy variables array to */
+   /* simplify the code part for age  */
+   array ageArray{111} a0-a110; 
+
+   do i = 1 to 111;
+        ageArray[i] = (age = i-1);  
+   end;
+
+/* input data according to above structure*/
+datalines; 
 DEU    1990    0    0.006106    0.008091    0.007125
 DEU    1990    1    0.000615    0.000676    0.000647
 DEU    1990    2    0.000355    0.000462    0.00041
@@ -2675,11 +2684,16 @@ DEU    2013    109    0.929799    2.566667    1.011348
 DEU    2013    110     1.417293    6    1.485185
 ; 
 
-data GDP;    /* read dataset into SAS */
-input Year GDPpercapita GDPpercapitagrowth GDPgrowth @@;   /* give name for each column */
-lgdp = log(GDPpercapita);  /* take log calculation */
+/* read dataset GDP into SAS */
+data GDP;    
+/* give name for each column */
+input Year GDPpercapita GDPpercapitagrowth GDPgrowth @@;   
 
-datalines; /* input data according to above structure*/
+/* take log calculation */
+lgdp = log(GDPpercapita);  
+
+/* input data according to above structure*/
+datalines; 
 1990    22219.57253    4.351639058    5.255006086
 1991    23269.3818     4.345220042    5.108261508
 1992    26333.53744    1.151771251    1.923807011
@@ -2706,12 +2720,17 @@ datalines; /* input data according to above structure*/
 2013    45688.39307    -1.598847722   0.489584482
 ;
 
-data health;    /* read dataset into SAS */
-input Year healthperinhabitant healthingdp @@;   /* give name for each column */
-lhealth = log(healthperinhabitant);  /* take log calculation */
+/* read dataset HEALTH into SAS */
+data health;    
+/* give name for each column */
+input Year healthperinhabitant healthingdp @@;   
+
+/* take log calculation */
+lhealth = log(healthperinhabitant);  
 lhealthgdp = log(healthingdp);
 
-datalines; /* input data according to above structure*/
+/* input data according to above structure*/
+datalines; 
 1992    1972    9.4
 1993    2012    9.3
 1994    2150    9.6
@@ -2736,73 +2755,232 @@ datalines; /* input data according to above structure*/
 2013    3902    11.2
 ;
 
-data deu;  /* extract deu data from mort */
+/* extract deu data from mort */
+data deu;  
   set mort;
   where Country='DEU';
 run;
 
-proc sort data=deu;  /* sort the deu data by year and age */
+/* sort the deu data by year and age */
+proc sort data=deu;  
    by year age;
 run;
 
 data combined1;
-merge deu GDP;
-by Year;
+   merge deu GDP;
+   by Year;
 run;
 
 data combined2;
-merge deu health;
-by Year;
+   merge deu health;
+   by Year;
 run;
 
 data combined3;
-merge deu GDP health;
-by Year;
+   merge deu GDP health;
+   by Year;
 run;
 
-/* ssm analysis with mixed effect model by year*/
-proc ssm data=combined3 plots=residual(normal);
-  id year;
-  trend population(ps(2));
-  trend year_d(ps(1)) cross(matchparm)= (ageArray) nodiffuse;
-  irregular wn;
-  model lmr = population year_d lhealth lgdp lhealthgdp GDPpercapitagrowth GDPgrowth wn;
-  comp meanpattern = population_state_[1];
-  eval mixedpattern = population + year_d + lhealth + lgdp + lhealthgdp + GDPpercapitagrowth + GDPgrowth;
-  output out=deuForMixedYear ALPHA=0.05 press pdv;
+/* sort the data by age because it is used as ID */
+/* in the PROC SSM call below                    */
+proc sort data=combined3 ;
+   by age;
 run;
 
+ODS RTF file = "C:\Users\jariou\MortEval_SSM\deuForMixedAge.rtf";
 /* ssm analysis with mixed effect model by age*/
-proc ssm data=combined3 plots=residual(normal); 
-  trend population(ps(2));
-  trend age_d(ps(1)) cross(matchparm)= (Year) nodiffuse;
-  irregular wn;
-  model lmr = population age_d lhealth lgdp lhealthgdp GDPpercapitagrowth GDPgrowth wn;
-  comp meanpattern = population_state_[1];
-  eval mixedpattern = population + age_d + lhealth + lgdp + lhealthgdp + GDPpercapitagrowth + GDPgrowth;
-  output out=deuForMixedAge ALPHA=0.05 press pdv;
+proc ssm 
+   data  = combined3 
+   plots = residual(normal)
+   /* Optimization options to improve  */
+   /* the likelihood of convergence    */
+   opt(  
+         maxiter = 200 
+         tech    = dbldog
+         )
+   ;
+
+   id age;
+   trend population(ps(2));
+   trend 
+         age_d(ps(1)) 
+         cross(matchparm) = (Year) 
+         nodiffuse
+         ;
+   irregular wn;
+
+   model lmr = 
+               population 
+               age_d 
+               lhealth 
+               lgdp 
+               lhealthgdp 
+               GDPpercapitagrowth 
+               GDPgrowth 
+               wn
+               ;
+   comp meanpattern  = population_state_[1];
+   eval mixedpattern = 
+                        population + 
+                        age_d + 
+                        lhealth + 
+                        lgdp + 
+                        lhealthgdp + 
+                        GDPpercapitagrowth + 
+                        GDPgrowth
+                        ;
+   output 
+         out   = deuForMixedAge 
+         ALPHA = 0.05 
+         press 
+         pdv
+         ;
 run;
 
-/* ssm analysis with mixed effect model by year only with lhealth and lgdp*/
-proc ssm data=combined3 plots=residual(normal); 
-  id year;
-  trend population(ps(2));
-  trend year_d(ps(1)) cross(matchparm)= (ageArray) nodiffuse;
-  irregular wn;
-  model lmr = population year_d lhealth lgdp wn;
-  comp meanpattern = population_state_[1];
-  eval mixedpattern = population + year_d + lhealth + lgdp;
-  output out=deuForMixedYearSim ALPHA=0.05 press pdv;
+/* sort the data by YEAR because it is used as ID */
+/* in the PROC SSM call below                     */
+proc sort data = combined3;
+   by year;
 run;
 
-/* ssm analysis with mixed effect model by age only with lhealth and lgdp*/
-proc ssm data=combined3 plots=residual(normal); 
-  id age;
-  trend population(ps(2));
-  trend age_d(ps(1)) cross(matchparm)= (Year) nodiffuse;
+/* Output specification */
+ODS RTF file = "C:\Users\jariou\MortEval_SSM\deuForMixedYear.rtf";
+
+/* ssm analysis with mixed effect model by year  */
+/* needed to add the line with ARRAY statement   */
+/* otherwise, ageArray was not recognized by ssm */
+/* and would crash it. This is actually a bug.   */
+/* The PROC SSM developer is notified            */
+proc ssm 
+   data  = combined3 
+   plots = residual(normal)
+   /* Optimization options to improve  */
+   /* the likelihood of convergence    */
+   opt(  
+         maxiter = 200 
+         tech    = dbldog
+         )
+   ;
+
+   array ageArray{111} a0-a110;
+   id year;
+   trend population(ps(2));
+   trend 
+         year_d(ps(1)) 
+         cross(matchparm) = (ageArray) 
+         nodiffuse
+         ;
   irregular wn;
-  model lmr = population age_d lhealth lgdp wn;
-  comp meanpattern = population_state_[1];
-  eval mixedpattern = population + age_d + lhealth + lgdp;
-  output out=deuForMixedAgeSim ALPHA=0.05 press pdv;
+
+  model lmr = 
+               population 
+               year_d 
+               lhealth 
+               lgdp 
+               lhealthgdp 
+               GDPpercapitagrowth 
+               GDPgrowth 
+               wn
+               ;
+  comp meanpattern  = population_state_[1];
+  eval mixedpattern = 
+                        population + 
+                        year_d + 
+                        lhealth + 
+                        lgdp + 
+                        lhealthgdp + 
+                        GDPpercapitagrowth + 
+                        GDPgrowth
+                        ;
+  output 
+         out   = deuForMixedYear 
+         ALPHA = 0.05 
+         press 
+         pdv
+         ;
 run;
+ODS CLOSE;
+
+/* The data is already sorted by YEAR  */
+/* No need to sort it again            */
+
+/* Output specification */
+ODS RTF file = "C:\Users\jariou\MortEval_SSM\deuForMixedYearSim.rtf";
+
+/* SSM analysis with mixed effect model */
+/* by year only with lhealth and lgdp   */
+proc ssm 
+         data  = combined3 
+         plots = residual(normal)
+         /* Optimization options to improve  */
+         /* the likelihood of convergence    */
+         opt(  
+               maxiter = 200 
+               tech    = dbldog
+               ); 
+   id year;
+   trend population(ps(2));
+   array ageArray{111} a0-a110;
+   trend year_d(ps(1)) cross(matchparm)= (ageArray) nodiffuse;
+   irregular wn;
+
+   model lmr = 
+               population 
+               year_d 
+               lhealth 
+               lgdp 
+               wn
+               ;
+   comp meanpattern = population_state_[1];
+   eval mixedpattern = population + year_d + lhealth + lgdp;
+   output 
+         out   = deuForMixedYearSim 
+         ALPHA = 0.05 
+         press 
+         pdv
+         ;
+run;
+ODS CLOSE;
+
+/* sort the data by age because it is used as ID */
+/* in the PROC SSM call below                    */
+proc sort data = combined3 ;
+   by age;
+run;
+
+/* Output specification */
+ODS RTF file="C:\Users\jariou\MortEval_SSM\deuForMixedAgeSim.rtf";
+
+/* ssm analysis with mixed effect model */
+/* by age only with lhealth and lgdp    */
+proc ssm 
+         data  = combined3 
+         plots = residual(normal)
+         /* Optimization options to improve  */
+         /* the likelihood of convergence    */
+         opt(  
+               maxiter = 200 
+               tech    = dbldog
+               ); 
+     id age;
+     trend population(ps(2));
+     trend age_d(ps(1)) cross(matchparm)= (Year) nodiffuse;
+     irregular wn;
+
+     model lmr = 
+                  population 
+                  age_d 
+                  lhealth 
+                  lgdp 
+                  wn
+                  ;
+     comp meanpattern  = population_state_[1];
+     eval mixedpattern = population + age_d + lhealth + lgdp;
+     output 
+            out   = deuForMixedAgeSim 
+            ALPHA = 0.05 
+            press 
+            pdv
+            ;
+run;
+ODS RTF CLOSE;
