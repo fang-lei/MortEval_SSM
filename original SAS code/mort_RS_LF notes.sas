@@ -34,7 +34,7 @@ data aus;  /* extract aus data from mort */
   set mort;
   where Country='AUS';
 run;
-data dnk;  /* extract dunk data from mort */
+data dnk;  /* extract dnk data from mort */
   set mort;
   where Country='DNK';
 run;
@@ -50,9 +50,10 @@ run;
 
 proc iml; /* interactive matrix language */
     use deu;
-    read all var {age} into x;  /* what is in variable x?? all? var{age}?? */
-    bsp = bspline(x, 2, ., 4);  /* Bspline on x with degree=2 and number of knots = 4 and produce 7 variables */
-    create spline var{c1 c2 c3 c4 c5 c6 c7};  /* create a variable spline to contain 7 variables from last step */
+    read all var {age} into x;  /* read age variable into x */
+    bsp = bspline(x, 2, ., 4);  /* generate B-spline basis for a cubic spline with 4 evenly spaced internal knots in the x-range 
+    (B-spline on x with degree=2 and number of knots = 4 and produce 7 variables) */
+    create spline var{c1 c2 c3 c4 c5 c6 c7};  /* create a merged date set spline to contain spline basis columns (7 variables from last step) */
     append from bsp;
  quit;
 
@@ -70,29 +71,28 @@ proc iml; /* interactive matrix language */
 
 proc ssm data=deu plot=ao; /* ao: create a panel of plots consisting of prediction error normality plots */
   id year;
-  parms v1-v7 0.001; /* specify the initial values of v1-v7 as 0.001 */
+  parms v1-v7 0.001; /* parameters needed for state space model, and specify the initial values of v1-v7 as 0.001 */
   lambda = v1*c1 + v2*c2 + v3*c3 + v4*c4
-       + v5*c5 + v6*c6 + v7*c7;  /* compute lambda via smoothed mortality data from B spline and unobserved parameters */
+       + v5*c5 + v6*c6 + v7*c7;  /* compute lambda via spline basis and latent variables (unobserved parameters) */
   if age=0 then lambda=1;
-  parms lvar2;  /* create parameter lvar2 and optimized by grid seraching */
-  parms av1-av7;  /* create parameters av1-av7 */
+  parms lvar2;  /* create parameter lvar2 and optimised by grid searching */
+  parms av1-av7;  /* parameters av1-av7 needed to define the variance function of this model*/
   var1 = exp(av1*c1 + av2*c2 + av3*c3 + av4*c4
-       + av5*c5 + av6*c6 + av7*c7); /* compute var1 */
+       + av5*c5 + av6*c6 + av7*c7); /* define the variance function of this model */
   
-  var2 = exp(lvar2); /* compute var2 */
+  var2 = exp(lvar2); /* compute var2 as exponential of lvar2 */
   state slate(1) T(I) W(I) cov(d)=(var2) A1(1); /* define the state structure slate(1) with transition 
-  matrix T(I) as identity form, design matrix W(I)as identity form, diturbance covariance Q as the diagonal 
-  matrix cov(d) of taking var2 as diagonal and A1(1) defining the last element of the state subsection as diffuse??*/
-  comp beffect = (lambda)*slate[1]; /* defind component as the product of lamda and the first varibale from slate(1) */
-  comp latent = slate[1];
+  matrix T(I) as identity form, design matrix W(I)as identity form, disturbance covariance Q as the diagonal 
+  matrix cov(d) of taking var2 as diagonal and A1(1) defining the last element of the state subsection as diffuse*/
+  comp beffect = (lambda)*slate[1]; /* define component beffect as the product of lambda and the first variabable from slate(1) */
+  comp latent = slate[1]; /* define component latent as the first variabale from slate(1) */
   
-  irregular wn variance=var1; /* define white noise component of this model */
-  model lmr = a1-a110 beffect wn; /* model statement: regression part of a1-a110 + state part beffect + residuas */
-  eval mpattern = &term beffect; /* &term ?? */
-  output out=deuFor press pdv; /* outut is saved in deuFor, and press means print the prediction errorsum of 
+  irregular wn variance=var1; /* define the observation noise with the variance function var1 */
+  model lmr = a1-a110 beffect wn; /* model statement: regression part of a1-a110 + state part beffect + observation noise(residuals) */
+  eval mpattern = &term beffect; /* define a variable mpattern as a1 + a2 +...+a110 + beffect */
+  output out=deuFor press pdv; /* output is saved in deuFor, and press means print the prediction error sum of 
   squares, PDV means print inclusive of the variables defined in programming statements in SSM procedure */
 run;
-
 
 proc sgplot data=deuFor;
    where age=10;
