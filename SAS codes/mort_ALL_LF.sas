@@ -1,3 +1,4 @@
+option mprint;
 /* This file contains a macro at the end as well as  */
 /* 4 calls to it to recreate and ehance the previous */
 /* PROC SSM models.                                  */
@@ -2822,14 +2823,30 @@ run;
 %mend;
 %let term = %makeTerm;
 
+/*************************************************************/
+/* Macro Name : mort_ssm_fit                                 */
+/* Description: fits some SSM models                         */ 
+/* Parameters:                                               */
+/*            inData         = The input dataset             */
+/*            regressors     = space separated list of       */
+/*                             regressor variables           */
+/*            outLocation    = path to a folder for output   */
+/*            outName        = base name for all ouput files */
+/*            plotWhereAge   = graph option                  */
+/*            plotWhereYear  = graph option                  */
+/*            plotOutputType = Type of graph output wanted   */
+/*                             can be PDF, RTF, HTML         */
+/*                                                           */
+/*************************************************************/
 
 %macro mort_ssm_fit(
-                     inData        = ,
-                     regressors    = ,
-                     outLocation   = ,
-                     outName       = ,
-                     plotWhereAge  = 10,
-                     plotWhereYear = 2000,
+                     inData         = ,
+                     regressors     = ,
+                     outLocation    = ,
+                     outName        = ,
+                     plotWhereAge   = 10,
+                     plotWhereYear  = 2000,
+                     plotOutputType = RTF
                      );
 
    libname myLib "&outLocation.";
@@ -2920,9 +2937,9 @@ run;
             press 
             pdv; 
    run;
-   ODS CLOSE;
+   ODS RTF CLOSE;
 
-   ODS PDF file = "&outLocation.\&outName._Smooth_Beffect.pdf";
+   ODS &plotOutputType. file = "&outLocation.\&outName._Smooth_Beffect.&plotOutputType.";
    proc sgplot data = MyLib.&outName.;
       where age = &plotWhereAge.;
       series 
@@ -2930,9 +2947,9 @@ run;
             y = smoothed_beffect
             ;
    run;
-   ODS CLOSE;
+   ODS &plotOutputType. CLOSE;
 
-   ODS PDF file = "&outLocation.\&outName._Lambda.pdf";
+   ODS &plotOutputType. file = "&outLocation.\&outName._Lambda.&plotOutputType.";
    proc sgplot data = MyLib.&outName.;
       where year = &plotWhereYear.;
       series 
@@ -2940,9 +2957,9 @@ run;
             y = lambda
             ;
    run;
-   ODS CLOSE;
+   ODS &plotOutputType. CLOSE;
 
-   ODS PDF file = "&outLocation.\&outName._Smooth_Latent.pdf";
+   ODS &plotOutputType. file = "&outLocation.\&outName._Smooth_Latent.&plotOutputType.";
    proc sgplot data = MyLib.&outName.;
       where age = &plotWhereAge.;
       series 
@@ -2950,9 +2967,9 @@ run;
             y = smoothed_latent
             ;
    run;
-   ODS CLOSE;
+   ODS &plotOutputType. CLOSE;
 
-   ODS PDF file = "&outLocation.\&outName._Smooth_MPattern.pdf";
+   ODS &plotOutputType. file = "&outLocation.\&outName._Smooth_MPattern.&plotOutputType.";
    proc sgplot data = MyLib.&outName.;
       where age = &plotWhereAge.;
       series 
@@ -2964,42 +2981,47 @@ run;
               y = lmr
               ;
    run;
-   ODS CLOSE;
+   ODS &plotOutputType. CLOSE;
 %mend mort_ssm_fit;
 
 
 %mort_ssm_fit(
-               inData        = combined3,
-               regressors    = ,
-               outName       = DEU_NoReg,
-               plotWhereAge  = 10,
-               plotWhereYear = 2000,
-               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               inData         = DEU,
+               regressors     = ,
+               outName        = DEU_NoReg,
+               plotWhereAge   = 10,
+               plotWhereYear  = 2000,
+               outLocation    = %str(C:\Users\jariou\MortEval_SSM\SAS_Output),
+               plotOutputType = RTF
                )
 
 %mort_ssm_fit(
-               inData        = combined3,
-               regressors    = HEALTH,
+               inData        = combined2,
+               regressors    = LHEALTH,
                outName       = DEU_HEALTH,
                plotWhereAge  = 10,
                plotWhereYear = 2000,
-               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output),
+               plotOutputType = RTF
                )
 
 %mort_ssm_fit(
-               inData        = combined3,
-               regressors    = GDP,
+               inData        = combined1,
+               regressors    = LGDP,
                outName       = DEU_GDP,
                plotWhereAge  = 10,
                plotWhereYear = 2000,
-               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output),
+               plotOutputType = RTF
                )
 
 %mort_ssm_fit(
                inData        = combined3,
-               regressors    = GDP HEALTH,
+               regressors    = LGDP LHEALTH,
                outName       = DEU_GDP_HEALTH,
                plotWhereAge  = 10,
                plotWhereYear = 2000,
-               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output)
+               outLocation   = %str(C:\Users\jariou\MortEval_SSM\SAS_Output),
+               plotOutputType = RTF
                )
+
